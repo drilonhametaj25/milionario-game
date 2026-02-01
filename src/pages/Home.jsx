@@ -155,6 +155,20 @@ export default function Home({ playerId, roomCode, clearSession, setPlayerId, se
           </p>
         </Card>
 
+        {/* Promo Banner */}
+        <div className="glass rounded-xl p-3 text-center">
+          <p className="text-white/60 text-sm">
+            Se volete un gestionale o SitoWeb scrivete a{' '}
+            <a
+              href="mailto:info@drilonhametaj.it"
+              className="text-gold hover:text-yellow-300 transition-colors"
+            >
+              info@drilonhametaj.it
+            </a>
+            {' '}:D
+          </p>
+        </div>
+
         {/* Footer */}
         <p className="text-center text-white/40 text-xs">
           Versione 1.0 - Fatto con ❤️ per le cene divertenti
