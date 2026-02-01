@@ -653,7 +653,7 @@ export function assignRoles(playerIds, useAccomplice = true) {
   return assignments;
 }
 
-export function calculateScores(players, votes) {
+export function calculateScores(players, votes, validations = null) {
   const scores = {};
 
   // Find millionaire
@@ -680,12 +680,32 @@ export function calculateScores(players, votes) {
     ];
 
     for (const obj of objectives) {
-      const status = player.objectives_status?.[obj.id];
-      if (status?.completed) {
+      let isCompleted = false;
+
+      // If we have validation votes, use them instead of self-reported status
+      if (validations && validations.length > 0) {
+        // Get all votes for this objective
+        const objValidations = validations.filter(
+          v => v.target_player_id === player.id && v.objective_id === obj.id
+        );
+
+        if (objValidations.length > 0) {
+          // Objective is completed if majority approved
+          const approvals = objValidations.filter(v => v.approved).length;
+          isCompleted = approvals > objValidations.length / 2;
+        }
+      } else {
+        // Fallback to self-reported status
+        const status = player.objectives_status?.[obj.id];
+        isCompleted = status?.completed || false;
+      }
+
+      if (isCompleted) {
         score += obj.points;
 
-        // Bonus for correct discovery
-        if (obj.targetRole && status.tagged_player_id) {
+        // Bonus for correct discovery (still uses self-reported tagged player)
+        const status = player.objectives_status?.[obj.id];
+        if (obj.targetRole && status?.tagged_player_id) {
           const taggedPlayer = players.find(p => p.id === status.tagged_player_id);
           if (taggedPlayer?.role_id === obj.targetRole) {
             score += 10; // Bonus for correct discovery

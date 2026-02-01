@@ -27,6 +27,21 @@ export default function Reveal({ playerId, clearSession }) {
   const [revealStage, setRevealStage] = useState(0);
   // Stages: 0 = suspense, 1 = millionaire reveal, 2 = vote results, 3 = all roles, 4 = scoreboard
 
+  // Redirect if not in reveal state
+  useEffect(() => {
+    if (!loading && room) {
+      if (room.status === 'validating') {
+        navigate(`/validation/${code}`);
+      } else if (room.status === 'voting') {
+        navigate(`/voting/${code}`);
+      } else if (room.status === 'playing') {
+        navigate(`/game/${code}`);
+      } else if (room.status === 'lobby') {
+        navigate(`/lobby/${code}`);
+      }
+    }
+  }, [loading, room, code, navigate]);
+
   useEffect(() => {
     // Auto-advance through reveal stages
     const timers = [];

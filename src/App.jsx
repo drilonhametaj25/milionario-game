@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ToastProvider } from './components/ui/Toast';
-import { Home, CreateRoom, JoinRoom, Lobby, Game, Voting, Reveal } from './pages';
+import { Home, CreateRoom, JoinRoom, Lobby, Game, Voting, Validation, Reveal } from './pages';
 
 function App() {
   const [playerId, setPlayerId] = useState(() =>
@@ -45,6 +45,8 @@ function App() {
                 playerId={playerId}
                 roomCode={roomCode}
                 clearSession={clearSession}
+                setPlayerId={setPlayerId}
+                setRoomCode={setRoomCode}
               />
             }
           />
@@ -96,6 +98,14 @@ function App() {
             path="/voting/:code"
             element={
               <Voting
+                playerId={playerId}
+              />
+            }
+          />
+          <Route
+            path="/validation/:code"
+            element={
+              <Validation
                 playerId={playerId}
               />
             }

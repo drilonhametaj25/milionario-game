@@ -1,8 +1,10 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useRoom from './useRoom';
 import usePlayer from './usePlayer';
+import useValidation from './useValidation';
 import { calculateScores } from '../lib/roles';
+import { supabase } from '../lib/supabase';
 
 export default function useGame(roomCode, playerId) {
   const navigate = useNavigate();
@@ -16,6 +18,8 @@ export default function useGame(roomCode, playerId) {
     startGame,
     startVoting,
     endVoting,
+    startValidation,
+    endValidation,
     resetRoom,
     leaveRoom,
   } = useRoom(roomCode);
@@ -29,6 +33,27 @@ export default function useGame(roomCode, playerId) {
     tagPlayerForDiscovery,
     castVote,
   } = usePlayer(playerId);
+
+  // Validation data for scoring
+  const [validations, setValidations] = useState([]);
+
+  // Fetch validations when entering reveal state
+  useEffect(() => {
+    const fetchValidations = async () => {
+      if (room?.status === 'reveal' && room?.id) {
+        const { data, error } = await supabase
+          .from('objective_validations')
+          .select('*')
+          .eq('room_id', room.id);
+
+        if (!error && data) {
+          setValidations(data);
+        }
+      }
+    };
+
+    fetchValidations();
+  }, [room?.status, room?.id]);
 
   // Combined loading state
   const loading = roomLoading || playerLoading;
@@ -81,8 +106,9 @@ export default function useGame(roomCode, playerId) {
         vote_target_id: p.vote_target_id,
       }));
 
-    return calculateScores(players, votes);
-  }, [room?.status, players]);
+    // Pass validations to calculateScores if available
+    return calculateScores(players, votes, validations.length > 0 ? validations : null);
+  }, [room?.status, players, validations]);
 
   // Get millionaire
   const millionaire = useMemo(() => {
@@ -130,6 +156,11 @@ export default function useGame(roomCode, playerId) {
       case 'voting':
         if (!currentPath.includes('/voting/')) {
           navigate(`/voting/${roomCode}`);
+        }
+        break;
+      case 'validating':
+        if (!currentPath.includes('/validation/')) {
+          navigate(`/validation/${roomCode}`);
         }
         break;
       case 'reveal':
@@ -180,6 +211,8 @@ export default function useGame(roomCode, playerId) {
     startGame,
     startVoting,
     endVoting,
+    startValidation,
+    endValidation,
     updateObjectiveStatus,
     tagPlayerForDiscovery,
     castVote,

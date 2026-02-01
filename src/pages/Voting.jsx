@@ -31,7 +31,9 @@ export default function Voting({ playerId }) {
   // Redirect if not in voting state
   useEffect(() => {
     if (!loading && room) {
-      if (room.status === 'reveal') {
+      if (room.status === 'validating') {
+        navigate(`/validation/${code}`);
+      } else if (room.status === 'reveal') {
         navigate(`/reveal/${code}`);
       } else if (room.status === 'playing') {
         navigate(`/game/${code}`);

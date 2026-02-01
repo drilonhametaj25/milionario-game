@@ -347,8 +347,50 @@ export default function useRoom(roomCode) {
     }
   }, [room]);
 
-  // End voting and show results
+  // End voting and go to validation phase
   const endVoting = useCallback(async () => {
+    if (!room) return;
+
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .update({
+          status: 'validating',
+          validation_player_index: 0,
+          validation_objective_index: 0,
+        })
+        .eq('id', room.id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error ending voting:', err);
+      setError('Errore nella chiusura della votazione');
+    }
+  }, [room]);
+
+  // Start validation phase (skip voting auto-transition)
+  const startValidation = useCallback(async () => {
+    if (!room) return;
+
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .update({
+          status: 'validating',
+          validation_player_index: 0,
+          validation_objective_index: 0,
+        })
+        .eq('id', room.id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error starting validation:', err);
+      setError('Errore nell\'avvio della validazione');
+    }
+  }, [room]);
+
+  // End validation and go to reveal
+  const endValidation = useCallback(async () => {
     if (!room) return;
 
     try {
@@ -359,16 +401,104 @@ export default function useRoom(roomCode) {
 
       if (error) throw error;
     } catch (err) {
-      console.error('Error ending voting:', err);
-      setError('Errore nella chiusura della votazione');
+      console.error('Error ending validation:', err);
+      setError('Errore nella chiusura della validazione');
     }
   }, [room]);
+
+  // Create a test room with 6 fake players for testing
+  const createTestRoom = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Generate room code
+      const { data: codeData, error: codeError } = await supabase
+        .rpc('generate_room_code');
+
+      if (codeError) throw codeError;
+
+      const code = codeData;
+
+      // Create room
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .insert({
+          code,
+          host_id: '00000000-0000-0000-0000-000000000000',
+          status: 'lobby',
+          settings: {
+            timer_minutes: null,
+            use_accomplice: true,
+          },
+        })
+        .select()
+        .single();
+
+      if (roomError) throw roomError;
+
+      // Create host player (Test Host)
+      const { data: hostPlayer, error: hostError } = await supabase
+        .from('players')
+        .insert({
+          room_id: roomData.id,
+          nickname: 'Test Host 🎮',
+          avatar_emoji: '🎮',
+          is_host: true,
+        })
+        .select()
+        .single();
+
+      if (hostError) throw hostError;
+
+      // Update room with host_id
+      await supabase
+        .from('rooms')
+        .update({ host_id: hostPlayer.id })
+        .eq('id', roomData.id);
+
+      // Create 5 fake players
+      const fakePlayerEmojis = ['🤖', '👾', '🎯', '🎲', '🎪'];
+      const fakePlayerPromises = [];
+
+      for (let i = 1; i <= 5; i++) {
+        fakePlayerPromises.push(
+          supabase
+            .from('players')
+            .insert({
+              room_id: roomData.id,
+              nickname: `Test${i} ${fakePlayerEmojis[i - 1]}`,
+              avatar_emoji: fakePlayerEmojis[i - 1],
+              is_host: false,
+            })
+            .select()
+            .single()
+        );
+      }
+
+      await Promise.all(fakePlayerPromises);
+
+      return { room: roomData, player: hostPlayer, code };
+    } catch (err) {
+      console.error('Error creating test room:', err);
+      setError('Errore nella creazione della stanza di test');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Reset room for new game
   const resetRoom = useCallback(async () => {
     if (!room) return;
 
     try {
+      // Delete all validation votes
+      await supabase
+        .from('objective_validations')
+        .delete()
+        .eq('room_id', room.id);
+
       // Reset all players
       const { error: playersError } = await supabase
         .from('players')
@@ -389,6 +519,8 @@ export default function useRoom(roomCode) {
           status: 'lobby',
           started_at: null,
           voting_started_at: null,
+          validation_player_index: 0,
+          validation_objective_index: 0,
         })
         .eq('id', room.id);
 
@@ -406,11 +538,14 @@ export default function useRoom(roomCode) {
     error,
     isConnected,
     createRoom,
+    createTestRoom,
     joinRoom,
     leaveRoom,
     startGame,
     startVoting,
     endVoting,
+    startValidation,
+    endValidation,
     resetRoom,
     refetch: fetchRoomData,
   };

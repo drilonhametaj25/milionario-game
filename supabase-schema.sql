@@ -113,3 +113,43 @@ CREATE POLICY "Players are deletable by everyone" ON players FOR DELETE USING (t
 -- ===========================================
 ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE players;
+
+-- ===========================================
+-- AGGIORNAMENTI PER VALIDAZIONE OBIETTIVI
+-- ===========================================
+
+-- Aggiungere nuovo status 'validating'
+ALTER TABLE rooms DROP CONSTRAINT IF EXISTS rooms_status_check;
+ALTER TABLE rooms ADD CONSTRAINT rooms_status_check
+  CHECK (status IN ('lobby', 'playing', 'voting', 'validating', 'reveal'));
+
+-- Colonne per tracking validazione
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS validation_player_index INTEGER DEFAULT 0;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS validation_objective_index INTEGER DEFAULT 0;
+
+-- Tabella per voti validazione obiettivi
+CREATE TABLE IF NOT EXISTS objective_validations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+  target_player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+  objective_id VARCHAR(50) NOT NULL,
+  voter_player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+  approved BOOLEAN NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(room_id, target_player_id, objective_id, voter_player_id)
+);
+
+-- Index per query frequenti
+CREATE INDEX IF NOT EXISTS idx_validations_room ON objective_validations(room_id);
+CREATE INDEX IF NOT EXISTS idx_validations_target ON objective_validations(target_player_id);
+
+-- RLS per validazioni
+ALTER TABLE objective_validations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Validations are viewable by everyone" ON objective_validations FOR SELECT USING (true);
+CREATE POLICY "Validations are insertable by everyone" ON objective_validations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Validations are updatable by everyone" ON objective_validations FOR UPDATE USING (true);
+CREATE POLICY "Validations are deletable by everyone" ON objective_validations FOR DELETE USING (true);
+
+-- Abilita realtime per validazioni
+ALTER PUBLICATION supabase_realtime ADD TABLE objective_validations;

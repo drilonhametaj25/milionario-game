@@ -1,11 +1,56 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import useRoom from '../hooks/useRoom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import Spinner from '../components/ui/Spinner';
 
-export default function Home({ playerId, roomCode, clearSession }) {
+export default function Home({ playerId, roomCode, clearSession, setPlayerId, setRoomCode }) {
   const navigate = useNavigate();
+  const { createTestRoom } = useRoom();
+  const [isCreatingTestRoom, setIsCreatingTestRoom] = useState(false);
+
+  // Triple tap detection for test mode
+  const tapCountRef = useRef(0);
+  const lastTapTimeRef = useRef(0);
+  const TAP_DELAY = 500; // ms between taps
+
+  const handleLogoTap = async () => {
+    const now = Date.now();
+
+    // Reset if too much time passed since last tap
+    if (now - lastTapTimeRef.current > TAP_DELAY) {
+      tapCountRef.current = 0;
+    }
+
+    lastTapTimeRef.current = now;
+    tapCountRef.current += 1;
+
+    // Triple tap detected - enter test mode
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0;
+      await enterTestMode();
+    }
+  };
+
+  const enterTestMode = async () => {
+    if (isCreatingTestRoom) return;
+
+    setIsCreatingTestRoom(true);
+    try {
+      const result = await createTestRoom();
+      if (result) {
+        setPlayerId(result.player.id);
+        setRoomCode(result.code);
+        navigate(`/lobby/${result.code}`);
+      }
+    } catch (err) {
+      console.error('Failed to create test room:', err);
+    } finally {
+      setIsCreatingTestRoom(false);
+    }
+  };
 
   // Check if player still exists in room
   useEffect(() => {
@@ -40,6 +85,9 @@ export default function Home({ playerId, roomCode, clearSession }) {
             case 'voting':
               navigate(`/voting/${code}`);
               break;
+            case 'validating':
+              navigate(`/validation/${code}`);
+              break;
             case 'reveal':
               navigate(`/reveal/${code}`);
               break;
@@ -59,9 +107,14 @@ export default function Home({ playerId, roomCode, clearSession }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
-        {/* Logo */}
+        {/* Logo - Triple tap for test mode */}
         <div className="text-center">
-          <div className="emoji-2xl mb-4 animate-float">💰</div>
+          <div
+            className="emoji-2xl mb-4 animate-float cursor-pointer select-none"
+            onClick={handleLogoTap}
+          >
+            {isCreatingTestRoom ? <Spinner size="lg" /> : '💰'}
+          </div>
           <h1 className="text-4xl font-bold text-gold-gradient mb-2">
             Chi è il Milionario?
           </h1>

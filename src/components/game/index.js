@@ -9,3 +9,5 @@ export { default as VoteCard } from './VoteCard';
 export { default as VotingResults } from './VotingResults';
 export { default as ScoreBoard } from './ScoreBoard';
 export { default as Timer } from './Timer';
+export { default as ValidationCard } from './ValidationCard';
+export { default as ValidationProgress } from './ValidationProgress';
