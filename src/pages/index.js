@@ -6,3 +6,4 @@ export { default as Game } from './Game';
 export { default as Voting } from './Voting';
 export { default as Validation } from './Validation';
 export { default as Reveal } from './Reveal';
+export { default as StorySelect } from './StorySelect';

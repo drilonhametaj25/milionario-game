@@ -153,3 +153,194 @@ CREATE POLICY "Validations are deletable by everyone" ON objective_validations F
 
 -- Abilita realtime per validazioni
 ALTER PUBLICATION supabase_realtime ADD TABLE objective_validations;
+
+-- ===========================================
+-- SISTEMA MULTI-STORIA CON TRACKING
+-- ===========================================
+
+-- Tabella storie
+CREATE TABLE IF NOT EXISTS stories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug VARCHAR(50) UNIQUE NOT NULL,              -- 'milionario', 'spia-russa'
+  title VARCHAR(100) NOT NULL,                   -- "Chi è il Milionario?"
+  tagline VARCHAR(200),                          -- "Qualcuno ha vinto alla lotteria..."
+  description TEXT,                              -- Descrizione lunga per la selezione
+  setting VARCHAR(200),                          -- "Cena tra amici"
+  emoji VARCHAR(10),                             -- 💰
+  cover_image_url TEXT,                          -- Immagine copertina (opzionale)
+  min_players INTEGER DEFAULT 6,
+  max_players INTEGER DEFAULT 20,
+  has_accomplice BOOLEAN DEFAULT true,           -- Ha ruolo accolito?
+  accomplice_threshold INTEGER DEFAULT 12,       -- Giocatori minimi per accolito
+  second_accomplice_threshold INTEGER DEFAULT 16,-- Giocatori minimi per secondo accolito
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indice per ordinamento e ricerca
+CREATE INDEX IF NOT EXISTS idx_stories_slug ON stories(slug);
+CREATE INDEX IF NOT EXISTS idx_stories_active ON stories(is_active, sort_order);
+
+-- Ruoli per ogni storia
+CREATE TABLE IF NOT EXISTS story_roles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+  role_key VARCHAR(50) NOT NULL,                 -- 'millionaire', 'detective'
+  name VARCHAR(50) NOT NULL,                     -- "Il Milionario"
+  emoji VARCHAR(10),
+  color_class VARCHAR(50),                       -- 'from-yellow-400 to-amber-500'
+  description TEXT NOT NULL,                     -- Testo narrativo
+  role_type VARCHAR(20) DEFAULT 'regular',       -- 'millionaire', 'accomplice', 'regular'
+  pair_with VARCHAR(50),                         -- role_key del ruolo accoppiato
+  scoring_rules JSONB,                           -- Regole punteggio custom
+  sort_order INTEGER DEFAULT 0,
+  UNIQUE(story_id, role_key)
+);
+
+-- Indici per ruoli
+CREATE INDEX IF NOT EXISTS idx_story_roles_story ON story_roles(story_id);
+CREATE INDEX IF NOT EXISTS idx_story_roles_key ON story_roles(story_id, role_key);
+
+-- Obiettivi per ogni ruolo
+CREATE TABLE IF NOT EXISTS story_objectives (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  role_id UUID REFERENCES story_roles(id) ON DELETE CASCADE,
+  objective_key VARCHAR(50) NOT NULL,            -- 'M_P1', 'DET_D1'
+  type VARCHAR(20) NOT NULL,                     -- 'personal', 'discovery', 'interaction'
+  text TEXT NOT NULL,
+  hint TEXT,
+  points INTEGER DEFAULT 10,
+  risk VARCHAR(20) DEFAULT 'low',                -- 'low', 'medium', 'high'
+  target_role VARCHAR(50),                       -- Per discovery: role_key da scoprire
+  fallback_text TEXT,                            -- Testo alternativo se ruolo non presente
+  requires_discovery VARCHAR(50),                -- objective_key di discovery richiesta
+  sort_order INTEGER DEFAULT 0,
+  UNIQUE(role_id, objective_key)
+);
+
+-- Indici per obiettivi
+CREATE INDEX IF NOT EXISTS idx_story_objectives_role ON story_objectives(role_id);
+CREATE INDEX IF NOT EXISTS idx_story_objectives_type ON story_objectives(role_id, type);
+
+-- Coppie di ruoli (per mantenere le coppie in ordine)
+CREATE TABLE IF NOT EXISTS story_role_pairs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+  role_key_1 VARCHAR(50) NOT NULL,
+  role_key_2 VARCHAR(50) NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  UNIQUE(story_id, role_key_1, role_key_2)
+);
+
+CREATE INDEX IF NOT EXISTS idx_story_role_pairs_story ON story_role_pairs(story_id);
+
+-- ===========================================
+-- GRUPPI DI GIOCO E TRACKING
+-- ===========================================
+
+-- Gruppi di gioco (per tracking)
+CREATE TABLE IF NOT EXISTS game_groups (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(100),                             -- "Gruppo Pizza Venerdì"
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Associazione giocatori a gruppi
+CREATE TABLE IF NOT EXISTS group_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id UUID REFERENCES game_groups(id) ON DELETE CASCADE,
+  player_fingerprint VARCHAR(100),               -- Hash browser/device per identificare
+  nickname VARCHAR(30),
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(group_id, player_fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_fingerprint ON group_members(player_fingerprint);
+
+-- Storie completate per gruppo
+CREATE TABLE IF NOT EXISTS group_story_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id UUID REFERENCES game_groups(id) ON DELETE CASCADE,
+  story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+  room_id UUID REFERENCES rooms(id),             -- Collegamento alla partita
+  played_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(group_id, story_id, room_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_history_group ON group_story_history(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_history_story ON group_story_history(story_id);
+
+-- ===========================================
+-- MODIFICHE TABELLA ROOMS
+-- ===========================================
+
+-- Aggiungere colonne per storia e gruppo
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS story_id UUID REFERENCES stories(id);
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES game_groups(id);
+
+CREATE INDEX IF NOT EXISTS idx_rooms_story ON rooms(story_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_group ON rooms(group_id);
+
+-- ===========================================
+-- RLS POLICIES PER NUOVE TABELLE
+-- ===========================================
+
+-- Stories: leggibili da tutti
+ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Stories are viewable by everyone" ON stories FOR SELECT USING (true);
+CREATE POLICY "Stories are insertable by everyone" ON stories FOR INSERT WITH CHECK (true);
+CREATE POLICY "Stories are updatable by everyone" ON stories FOR UPDATE USING (true);
+CREATE POLICY "Stories are deletable by everyone" ON stories FOR DELETE USING (true);
+
+-- Story roles: leggibili da tutti
+ALTER TABLE story_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Story roles are viewable by everyone" ON story_roles FOR SELECT USING (true);
+CREATE POLICY "Story roles are insertable by everyone" ON story_roles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Story roles are updatable by everyone" ON story_roles FOR UPDATE USING (true);
+CREATE POLICY "Story roles are deletable by everyone" ON story_roles FOR DELETE USING (true);
+
+-- Story objectives: leggibili da tutti
+ALTER TABLE story_objectives ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Story objectives are viewable by everyone" ON story_objectives FOR SELECT USING (true);
+CREATE POLICY "Story objectives are insertable by everyone" ON story_objectives FOR INSERT WITH CHECK (true);
+CREATE POLICY "Story objectives are updatable by everyone" ON story_objectives FOR UPDATE USING (true);
+CREATE POLICY "Story objectives are deletable by everyone" ON story_objectives FOR DELETE USING (true);
+
+-- Story role pairs: leggibili da tutti
+ALTER TABLE story_role_pairs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Story role pairs are viewable by everyone" ON story_role_pairs FOR SELECT USING (true);
+CREATE POLICY "Story role pairs are insertable by everyone" ON story_role_pairs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Story role pairs are updatable by everyone" ON story_role_pairs FOR UPDATE USING (true);
+CREATE POLICY "Story role pairs are deletable by everyone" ON story_role_pairs FOR DELETE USING (true);
+
+-- Groups: CRUD per tutti
+ALTER TABLE game_groups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Groups are viewable by everyone" ON game_groups FOR SELECT USING (true);
+CREATE POLICY "Groups are insertable by everyone" ON game_groups FOR INSERT WITH CHECK (true);
+CREATE POLICY "Groups are updatable by everyone" ON game_groups FOR UPDATE USING (true);
+CREATE POLICY "Groups are deletable by everyone" ON game_groups FOR DELETE USING (true);
+
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Group members are viewable by everyone" ON group_members FOR SELECT USING (true);
+CREATE POLICY "Group members are insertable by everyone" ON group_members FOR INSERT WITH CHECK (true);
+CREATE POLICY "Group members are updatable by everyone" ON group_members FOR UPDATE USING (true);
+CREATE POLICY "Group members are deletable by everyone" ON group_members FOR DELETE USING (true);
+
+ALTER TABLE group_story_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "History is viewable by everyone" ON group_story_history FOR SELECT USING (true);
+CREATE POLICY "History is insertable by everyone" ON group_story_history FOR INSERT WITH CHECK (true);
+CREATE POLICY "History is updatable by everyone" ON group_story_history FOR UPDATE USING (true);
+CREATE POLICY "History is deletable by everyone" ON group_story_history FOR DELETE USING (true);
+
+-- ===========================================
+-- REALTIME PER NUOVE TABELLE
+-- ===========================================
+
+ALTER PUBLICATION supabase_realtime ADD TABLE stories;
+ALTER PUBLICATION supabase_realtime ADD TABLE story_roles;
+ALTER PUBLICATION supabase_realtime ADD TABLE story_objectives;
+ALTER PUBLICATION supabase_realtime ADD TABLE game_groups;
+ALTER PUBLICATION supabase_realtime ADD TABLE group_members;
+ALTER PUBLICATION supabase_realtime ADD TABLE group_story_history;

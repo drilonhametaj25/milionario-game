@@ -4,10 +4,18 @@ import { ROLES } from '../../lib/roles';
 import PlayerAvatar from './PlayerAvatar';
 import Badge from '../ui/Badge';
 
-export default function ScoreBoard({ players, scores }) {
+export default function ScoreBoard({ players, scores, rolesMap = null }) {
   const sortedPlayers = useMemo(() => {
     return sortByScore(players, scores);
   }, [players, scores]);
+
+  // Helper to get role from rolesMap or fallback to ROLES
+  const getRole = (roleId) => {
+    if (rolesMap && rolesMap[roleId]) {
+      return rolesMap[roleId];
+    }
+    return ROLES[roleId];
+  };
 
   return (
     <div className="space-y-3">
@@ -17,7 +25,7 @@ export default function ScoreBoard({ players, scores }) {
 
       {sortedPlayers.map((player, index) => {
         const score = scores[player.id] || 0;
-        const role = ROLES[player.role_id];
+        const role = getRole(player.role_id);
         const medal = getMedalEmoji(index);
 
         return (

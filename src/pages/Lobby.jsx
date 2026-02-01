@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGame } from '../hooks';
+import { useGame, useRoomStory } from '../hooks';
 import { copyToClipboard, generateShareUrl } from '../lib/utils';
 import { GameLayout } from '../components/layout';
 import { PlayerList } from '../components/game';
 import { Button, Spinner, Card } from '../components/ui';
 import { useToast } from '../components/ui/Toast';
+import { StoryPreview } from '../components/stories';
 
 export default function Lobby({ playerId, clearSession }) {
   const { code } = useParams();
@@ -23,6 +24,9 @@ export default function Lobby({ playerId, clearSession }) {
     startGame,
     handleLeave,
   } = useGame(code, playerId);
+
+  // Load story info from room
+  const { story, loading: storyLoading } = useRoomStory(room);
 
   // Redirect to home if not valid
   useEffect(() => {
@@ -104,6 +108,16 @@ export default function Lobby({ playerId, clearSession }) {
             <Spinner size="sm" />
             <span className="text-yellow-200">Riconnessione in corso...</span>
           </div>
+        )}
+
+        {/* Story Info */}
+        {story && (
+          <Card>
+            <div className="flex items-center gap-2 text-sm text-white/60 mb-2">
+              <span>Storia selezionata</span>
+            </div>
+            <StoryPreview story={story} />
+          </Card>
         )}
 
         {/* Share Section */}

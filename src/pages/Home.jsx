@@ -126,7 +126,7 @@ export default function Home({ playerId, roomCode, clearSession, setPlayerId, se
         {/* Main Card */}
         <Card className="space-y-4">
           <Button
-            onClick={() => navigate('/create')}
+            onClick={() => navigate('/stories')}
             className="w-full"
             size="lg"
           >

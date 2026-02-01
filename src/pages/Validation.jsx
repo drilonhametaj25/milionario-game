@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGame, useValidation } from '../hooks';
+import { useGame, useValidation, useRoomStory } from '../hooks';
 import { ROLES, getAllObjectives } from '../lib/roles';
 import { cn } from '../lib/utils';
 import { GameLayout } from '../components/layout';
@@ -24,6 +24,27 @@ export default function Validation({ playerId }) {
     isTestRoom,
     autoValidateTestPlayers,
   } = useGame(code, playerId);
+
+  // Load story data for dynamic roles
+  const { rolesMap, loading: storyLoading } = useRoomStory(room);
+
+  // Helper to get role from rolesMap or fallback to ROLES
+  const getRole = (roleId) => {
+    if (rolesMap && rolesMap[roleId]) {
+      return rolesMap[roleId];
+    }
+    return ROLES[roleId];
+  };
+
+  // Helper to get all objectives from a role
+  const getRoleObjectives = (role) => {
+    if (!role) return [];
+    return [
+      ...(role.objectives?.personal || []),
+      ...(role.objectives?.discovery || []),
+      ...(role.objectives?.interaction || []),
+    ];
+  };
 
   const {
     validations,
@@ -77,8 +98,8 @@ export default function Validation({ playerId }) {
   const targetPlayer = sortedPlayers[currentPlayerIndex];
 
   // Get target player's role and objectives
-  const targetRole = targetPlayer ? ROLES[targetPlayer.role_id] : null;
-  const targetObjectives = targetRole ? getAllObjectives(targetRole) : [];
+  const targetRole = targetPlayer ? getRole(targetPlayer.role_id) : null;
+  const targetObjectives = targetRole ? getRoleObjectives(targetRole) : [];
   const currentObjective = targetObjectives[currentObjectiveIndex];
 
   // Get vote status
@@ -136,7 +157,7 @@ export default function Validation({ playerId }) {
     }
   };
 
-  const loading = gameLoading || validationLoading;
+  const loading = gameLoading || validationLoading || storyLoading;
 
   if (loading) {
     return (

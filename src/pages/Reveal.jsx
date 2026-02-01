@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGame } from '../hooks';
+import { useGame, useRoomStory } from '../hooks';
 import { ROLES } from '../lib/roles';
 import { cn } from '../lib/utils';
 import { GameLayout } from '../components/layout';
@@ -23,6 +23,17 @@ export default function Reveal({ playerId, clearSession }) {
     scores,
     handleNewGame,
   } = useGame(code, playerId);
+
+  // Load story data for dynamic roles
+  const { rolesMap, loading: storyLoading } = useRoomStory(room);
+
+  // Helper to get role from rolesMap or fallback to ROLES
+  const getRole = (roleId) => {
+    if (rolesMap && rolesMap[roleId]) {
+      return rolesMap[roleId];
+    }
+    return ROLES[roleId];
+  };
 
   const [revealStage, setRevealStage] = useState(0);
   // Stages: 0 = suspense, 1 = millionaire reveal, 2 = vote results, 3 = all roles, 4 = scoreboard
@@ -87,7 +98,7 @@ export default function Reveal({ playerId, clearSession }) {
     );
   }
 
-  const millionaireRole = ROLES.millionaire;
+  const millionaireRole = getRole('millionaire');
   const votesForMillionaire = voteResults.find(r => r.player?.id === millionaire?.id);
   const millionaireCaught = (votesForMillionaire?.percentage || 0) > 60;
 
@@ -160,7 +171,7 @@ export default function Reveal({ playerId, clearSession }) {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {players.map((p) => {
-                const role = ROLES[p.role_id];
+                const role = getRole(p.role_id);
                 return (
                   <Card
                     key={p.id}
@@ -197,7 +208,7 @@ export default function Reveal({ playerId, clearSession }) {
         {/* Stage 4: Scoreboard */}
         {revealStage >= 4 && (
           <div className="animate-slide-up">
-            <ScoreBoard players={players} scores={scores} />
+            <ScoreBoard players={players} scores={scores} rolesMap={rolesMap} />
 
             {/* Actions */}
             <div className="mt-8 space-y-3">

@@ -1,21 +1,34 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useRoom } from '../hooks';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useRoom, useStory, useGroup } from '../hooks';
 import { AVATAR_EMOJIS, getRandomEmoji } from '../lib/utils';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card, { CardHeader, CardTitle } from '../components/ui/Card';
 import { useToast } from '../components/ui/Toast';
 import { cn } from '../lib/utils';
+import { StoryPreview } from '../components/stories';
 
 export default function CreateRoom({ setPlayerId, setRoomCode }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const storyId = searchParams.get('storyId');
+
   const { addToast } = useToast();
   const { createRoom, loading } = useRoom();
+  const { story, loading: storyLoading } = useStory(storyId);
+  const { group, markStoryPlayed } = useGroup();
 
   const [nickname, setNickname] = useState('');
   const [avatar, setAvatar] = useState(getRandomEmoji());
   const [error, setError] = useState('');
+
+  // Redirect to story selection if no storyId
+  useEffect(() => {
+    if (!storyId && !storyLoading) {
+      navigate('/stories');
+    }
+  }, [storyId, storyLoading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,7 +48,11 @@ export default function CreateRoom({ setPlayerId, setRoomCode }) {
       const { room, player, code } = await createRoom(
         nickname.trim(),
         avatar,
-        { useAccomplice: true }
+        {
+          useAccomplice: story?.has_accomplice ?? true,
+          storyId: storyId,
+          groupId: group?.id || null
+        }
       );
 
       setPlayerId(player.id);
@@ -53,19 +70,29 @@ export default function CreateRoom({ setPlayerId, setRoomCode }) {
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/stories')}
           className="flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Indietro
+          Cambia storia
         </button>
 
         <Card>
           <CardHeader>
             <CardTitle>Crea una nuova partita</CardTitle>
           </CardHeader>
+
+          {/* Story Preview */}
+          {story && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Storia selezionata
+              </label>
+              <StoryPreview story={story} />
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Nickname */}

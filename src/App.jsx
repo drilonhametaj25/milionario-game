@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ToastProvider } from './components/ui/Toast';
-import { Home, CreateRoom, JoinRoom, Lobby, Game, Voting, Validation, Reveal } from './pages';
+import { Home, CreateRoom, JoinRoom, Lobby, Game, Voting, Validation, Reveal, StorySelect } from './pages';
 
 function App() {
   const [playerId, setPlayerId] = useState(() =>
@@ -49,6 +49,10 @@ function App() {
                 setRoomCode={setRoomCode}
               />
             }
+          />
+          <Route
+            path="/stories"
+            element={<StorySelect />}
           />
           <Route
             path="/create"

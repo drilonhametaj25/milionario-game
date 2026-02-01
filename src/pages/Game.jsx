@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGame } from '../hooks';
+import { useGame, useRoomStory } from '../hooks';
 import { GameLayout } from '../components/layout';
 import { RoleReveal, RoleCard, ObjectiveList, PlayerList } from '../components/game';
 import { Button, Spinner, Card, Modal, ModalHeader, ModalTitle, ModalBody } from '../components/ui';
@@ -26,6 +26,17 @@ export default function Game({ playerId }) {
     tagPlayerForDiscovery,
     handleLeave,
   } = useGame(code, playerId);
+
+  // Load story data for dynamic roles
+  const { rolesMap, loading: storyLoading } = useRoomStory(room);
+
+  // Get role from rolesMap if available, otherwise use the one from useGame
+  const effectiveRole = useMemo(() => {
+    if (player?.role_id && rolesMap) {
+      return rolesMap[player.role_id] || role;
+    }
+    return role;
+  }, [player?.role_id, rolesMap, role]);
 
   const [showRoleReveal, setShowRoleReveal] = useState(true);
   const [roleCollapsed, setRoleCollapsed] = useState(false);
@@ -96,6 +107,7 @@ export default function Game({ playerId }) {
     return (
       <RoleReveal
         roleId={player.role_id}
+        rolesMap={rolesMap}
         onComplete={() => setShowRoleReveal(false)}
       />
     );
@@ -125,9 +137,10 @@ export default function Game({ playerId }) {
         )}
 
         {/* Role Card */}
-        {role && (
+        {effectiveRole && (
           <RoleCard
             roleId={player.role_id}
+            rolesMap={rolesMap}
             collapsed={roleCollapsed}
             onToggle={() => setRoleCollapsed(!roleCollapsed)}
           />
@@ -139,7 +152,7 @@ export default function Game({ playerId }) {
             <span>🎯</span> I tuoi obiettivi
           </h2>
           <ObjectiveList
-            role={role}
+            role={effectiveRole}
             objectivesStatus={player.objectives_status || {}}
             players={players}
             currentPlayerId={playerId}

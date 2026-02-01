@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { assignRoles } from '../lib/roles';
+import {
+  loadFullStory,
+  assignRolesFromStory,
+  convertToLegacyFormat,
+  convertPairsToLegacyFormat
+} from '../lib/stories';
+import { recordStoryPlayed, getCurrentGroupId } from '../lib/groups';
 
 export default function useRoom(roomCode) {
   const [room, setRoom] = useState(null);
@@ -143,13 +150,18 @@ export default function useRoom(roomCode) {
 
       const code = codeData;
 
-      // Create room
+      // Use group_id from settings or localStorage
+      const groupId = settings.groupId || getCurrentGroupId();
+
+      // Create room with optional story_id and group_id
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .insert({
           code,
           host_id: '00000000-0000-0000-0000-000000000000', // Will be updated after player creation
           status: 'lobby',
+          story_id: settings.storyId || null,
+          group_id: groupId || null,
           settings: {
             timer_minutes: settings.timerMinutes || null,
             use_accomplice: settings.useAccomplice !== false,
@@ -303,10 +315,39 @@ export default function useRoom(roomCode) {
     }
 
     try {
-      // Assign roles
       const playerIds = players.map(p => p.id);
       const useAccomplice = room.settings?.use_accomplice !== false;
-      const roleAssignments = assignRoles(playerIds, useAccomplice);
+
+      let roleAssignments;
+
+      // Try to load story from database for dynamic role assignment
+      if (room.story_id) {
+        try {
+          const fullStory = await loadFullStory(room.story_id);
+
+          if (fullStory && fullStory.roles.length > 0) {
+            // Use database roles
+            roleAssignments = assignRolesFromStory(
+              playerIds,
+              fullStory.roles,
+              fullStory.pairs,
+              useAccomplice,
+              fullStory.story.accomplice_threshold || 12,
+              fullStory.story.second_accomplice_threshold || 16
+            );
+          } else {
+            // Fallback to hardcoded roles
+            console.warn('Story found but no roles, using fallback');
+            roleAssignments = assignRoles(playerIds, useAccomplice);
+          }
+        } catch (storyErr) {
+          console.warn('Error loading story roles, using fallback:', storyErr);
+          roleAssignments = assignRoles(playerIds, useAccomplice);
+        }
+      } else {
+        // No story_id, use hardcoded roles
+        roleAssignments = assignRoles(playerIds, useAccomplice);
+      }
 
       // Update each player with their role
       for (const [playerId, roleId] of Object.entries(roleAssignments)) {
@@ -328,6 +369,16 @@ export default function useRoom(roomCode) {
         .eq('id', room.id);
 
       if (roomError) throw roomError;
+
+      // Record story as played for the group
+      if (room.group_id && room.story_id) {
+        try {
+          await recordStoryPlayed(room.group_id, room.story_id, room.id);
+        } catch (historyErr) {
+          console.warn('Error recording story history:', historyErr);
+          // Non-blocking error
+        }
+      }
     } catch (err) {
       console.error('Error starting game:', err);
       setError('Errore nell\'avvio della partita');

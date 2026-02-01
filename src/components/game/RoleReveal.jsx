@@ -3,9 +3,10 @@ import { cn } from '../../lib/utils';
 import { ROLES } from '../../lib/roles';
 import Button from '../ui/Button';
 
-export default function RoleReveal({ roleId, onComplete }) {
+export default function RoleReveal({ roleId, onComplete, rolesMap = null }) {
   const [stage, setStage] = useState(0); // 0: waiting, 1: revealing, 2: revealed
-  const role = ROLES[roleId];
+  // Use custom rolesMap if provided (for database roles), otherwise fallback to ROLES
+  const role = rolesMap ? rolesMap[roleId] : ROLES[roleId];
 
   useEffect(() => {
     // Auto-advance through stages

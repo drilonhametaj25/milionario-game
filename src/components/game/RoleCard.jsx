@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { ROLES } from '../../lib/roles';
 
-export default function RoleCard({ roleId, collapsed = false, onToggle }) {
-  const role = ROLES[roleId];
+export default function RoleCard({ roleId, collapsed = false, onToggle, rolesMap = null }) {
+  // Use custom rolesMap if provided (for database roles), otherwise fallback to ROLES
+  const role = rolesMap ? rolesMap[roleId] : ROLES[roleId];
 
   if (!role) return null;
 
