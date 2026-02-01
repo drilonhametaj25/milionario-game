@@ -10,6 +10,13 @@ export default function useRoom(roomCode) {
   const [isConnected, setIsConnected] = useState(true);
   const channelRef = useRef(null);
 
+  // Handle case when no roomCode is provided (e.g., CreateRoom page)
+  useEffect(() => {
+    if (!roomCode) {
+      setLoading(false);
+    }
+  }, [roomCode]);
+
   // Fetch room and players
   const fetchRoomData = useCallback(async () => {
     if (!roomCode) {
