@@ -21,6 +21,8 @@ export default function Validation({ playerId }) {
     error: gameError,
     isConnected,
     isHost,
+    isTestRoom,
+    autoValidateTestPlayers,
   } = useGame(code, playerId);
 
   const {
@@ -108,6 +110,11 @@ export default function Validation({ playerId }) {
           approved ? 'Votato: Completato' : 'Votato: Non completato',
           'success'
         );
+
+        // Auto-validate for fake players in test mode
+        if (isTestRoom) {
+          await autoValidateTestPlayers(playerId, targetPlayer.id, currentObjective.id);
+        }
       }
     } catch (err) {
       addToast('Errore nel voto', 'error');
@@ -194,7 +201,7 @@ export default function Validation({ playerId }) {
           currentObjectiveIndex={currentObjectiveIndex}
           totalObjectives={targetObjectives.length}
           votesReceived={approvalStats.votesReceived}
-          totalVoters={players.length}
+          totalVoters={approvalStats.totalVoters}
         />
 
         {/* Current Player Card */}
@@ -257,7 +264,7 @@ export default function Validation({ playerId }) {
             ) : (
               <>
                 <Spinner size="sm" />
-                <span>In attesa di voti... ({approvalStats.votesReceived}/{players.length})</span>
+                <span>In attesa di voti... ({approvalStats.votesReceived}/{approvalStats.totalVoters})</span>
               </>
             )}
           </div>

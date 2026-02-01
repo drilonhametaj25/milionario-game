@@ -22,6 +22,8 @@ export default function useGame(roomCode, playerId) {
     endValidation,
     resetRoom,
     leaveRoom,
+    autoVoteTestPlayers,
+    autoValidateTestPlayers,
   } = useRoom(roomCode);
 
   const {
@@ -188,6 +190,19 @@ export default function useGame(roomCode, playerId) {
     await resetRoom();
   }, [resetRoom]);
 
+  // Wrapped castVote that also auto-votes for test players
+  const handleCastVote = useCallback(async (targetPlayerId) => {
+    const success = await castVote(targetPlayerId);
+    if (success && room?.settings?.is_test_room) {
+      // Auto-vote for fake players in test mode
+      await autoVoteTestPlayers(playerId);
+    }
+    return success;
+  }, [castVote, room, autoVoteTestPlayers, playerId]);
+
+  // Check if this is a test room
+  const isTestRoom = room?.settings?.is_test_room === true;
+
   return {
     // State
     room,
@@ -200,6 +215,7 @@ export default function useGame(roomCode, playerId) {
 
     // Computed
     isHost,
+    isTestRoom,
     otherPlayers,
     votingProgress,
     allVoted,
@@ -215,7 +231,8 @@ export default function useGame(roomCode, playerId) {
     endValidation,
     updateObjectiveStatus,
     tagPlayerForDiscovery,
-    castVote,
+    castVote: handleCastVote,
+    autoValidateTestPlayers,
     handleLeave,
     handleNewGame,
   };

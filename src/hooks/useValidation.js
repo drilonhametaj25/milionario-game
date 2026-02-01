@@ -233,13 +233,15 @@ export default function useValidation(roomCode, playerId) {
   const getApprovalForObjective = useCallback((targetPlayerId, objectiveId, totalPlayers) => {
     const votes = getVotesForObjective(targetPlayerId, objectiveId);
     const approvals = votes.filter(v => v.approved).length;
+    // The target player can't vote for themselves, so total voters is totalPlayers - 1
+    const actualTotalVoters = totalPlayers - 1;
     return {
       votesReceived: votes.length,
-      totalVoters: totalPlayers,
+      totalVoters: actualTotalVoters,
       approvals,
       rejections: votes.length - approvals,
       percentage: votes.length > 0 ? Math.round((approvals / votes.length) * 100) : 0,
-      allVoted: votes.length >= totalPlayers,
+      allVoted: votes.length >= actualTotalVoters,
     };
   }, [getVotesForObjective]);
 

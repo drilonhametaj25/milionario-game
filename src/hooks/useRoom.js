@@ -420,7 +420,7 @@ export default function useRoom(roomCode) {
 
       const code = codeData;
 
-      // Create room
+      // Create room (marked as test room)
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .insert({
@@ -430,6 +430,7 @@ export default function useRoom(roomCode) {
           settings: {
             timer_minutes: null,
             use_accomplice: true,
+            is_test_room: true,
           },
         })
         .select()
@@ -487,6 +488,67 @@ export default function useRoom(roomCode) {
       setLoading(false);
     }
   }, []);
+
+  // Auto-vote for fake players in test mode
+  const autoVoteTestPlayers = useCallback(async (hostPlayerId) => {
+    if (!room || !room.settings?.is_test_room) return;
+
+    try {
+      // Get all players except host who haven't voted
+      const fakePlayers = players.filter(p => p.id !== hostPlayerId && !p.has_voted);
+
+      // Get all possible vote targets (excluding self for each player)
+      const allPlayerIds = players.map(p => p.id);
+
+      // Make each fake player vote for a random other player
+      for (const fakePlayer of fakePlayers) {
+        const possibleTargets = allPlayerIds.filter(id => id !== fakePlayer.id);
+        const randomTarget = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+
+        await supabase
+          .from('players')
+          .update({
+            has_voted: true,
+            vote_target_id: randomTarget,
+          })
+          .eq('id', fakePlayer.id);
+      }
+    } catch (err) {
+      console.error('Error auto-voting for test players:', err);
+    }
+  }, [room, players]);
+
+  // Auto-validate for fake players in test mode
+  const autoValidateTestPlayers = useCallback(async (hostPlayerId, targetPlayerId, objectiveId) => {
+    if (!room || !room.settings?.is_test_room) return;
+
+    try {
+      // Get all players except host and target who haven't voted on this objective
+      const fakePlayers = players.filter(p =>
+        p.id !== hostPlayerId &&
+        p.id !== targetPlayerId
+      );
+
+      // Make each fake player vote randomly (70% approve, 30% reject for more interesting results)
+      for (const fakePlayer of fakePlayers) {
+        const approved = Math.random() > 0.3;
+
+        await supabase
+          .from('objective_validations')
+          .upsert({
+            room_id: room.id,
+            target_player_id: targetPlayerId,
+            objective_id: objectiveId,
+            voter_player_id: fakePlayer.id,
+            approved,
+          }, {
+            onConflict: 'room_id,target_player_id,objective_id,voter_player_id',
+          });
+      }
+    } catch (err) {
+      console.error('Error auto-validating for test players:', err);
+    }
+  }, [room, players]);
 
   // Reset room for new game
   const resetRoom = useCallback(async () => {
@@ -547,6 +609,8 @@ export default function useRoom(roomCode) {
     startValidation,
     endValidation,
     resetRoom,
+    autoVoteTestPlayers,
+    autoValidateTestPlayers,
     refetch: fetchRoomData,
   };
 }
